@@ -1,0 +1,21 @@
+ARG CUDA_VERSION=12.2.2
+ARG UBUNTU_VERSION=22.04
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS builder
+RUN apt update && apt install cudnn9-cuda-12 -y
+WORKDIR /build
+COPY client.cpp .
+COPY codegen codegen
+RUN g++ -fPIC -O3 -Wall -Wextra -DNDEBUG -std=c++17 -flto=auto -ffast-math -march=native -mtune=native -pipe -fomit-frame-pointer -c client.cpp -o client.o -I/usr/local/cuda/include
+RUN g++ -fPIC -O3 -Wall -Wextra -DNDEBUG -std=c++17 -flto=auto -ffast-math -march=native -mtune=native -pipe -fomit-frame-pointer -c codegen/gen_client.cpp -o gen_client.o -I/usr/local/cuda/include
+RUN g++ -fPIC -O3 -Wall -Wextra -DNDEBUG -std=c++17 -flto=auto -ffast-math -march=native -mtune=native -pipe -fomit-frame-pointer -c codegen/manual_client.cpp -o manual_client.o -I/usr/local/cuda/include
+RUN g++ -Wl,-O3 -Wl,--as-needed -Wl,--gc-sections -fuse-ld=gold -shared -o libscuda.so client.o gen_client.o manual_client.o -L/usr/local/cuda/lib64 -lcudart -lstdc++
+
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION}
+RUN apt update && apt install nvidia-utils-535 -y
+ENV SCUDA_SERVER=host.docker.internal
+ENV SCUDA_PORT=14833
+WORKDIR /cuda
+COPY --from=builder /build/libscuda.so .
+ENV LD_PRELOAD=/cuda/libscuda.so
+WORKDIR /
+CMD [ "nvidia-smi" ]

@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  scuda-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+      args:
+        CUDA_VERSION: 12.2.2
+        UBUNTU_VERSION: 22.04
+    restart: always
+    ports:
+      - "14833:14833"
+    image: scuda-server
+    container_name: scuda-server
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1 # alternatively, use `count: all` for all GPUs
+              capabilities: [gpu]
+  scuda-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        CUDA_VERSION: 12.2.2
+        UBUNTU_VERSION: 22.04
+    command: tail -F anything
+    restart: always
+    image: scuda-client
+    container_name: scuda-client
+    environment:
+      SCUDA_SERVER: scuda-server
+      libscuda_path: /usr/local/lib/libscuda.so

@@ -1,0 +1,23 @@
+ARG CUDA_VERSION=12.2.2
+ARG UBUNTU_VERSION=22.04
+
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS builder
+RUN apt update && apt install nvidia-utils-535 -y
+RUN apt install cudnn9-cuda-12 -y
+WORKDIR /build
+COPY server.cu .
+COPY codegen codegen
+#RUN nvidia-smi
+RUN nvcc -o server -lnvidia-ml -lcuda -lnvidia-ml -lcublas -lcudnn --cudart=shared -lcudnn server.cu codegen/gen_server.cpp codegen/manual_server.cpp
+#COPY . .
+#RUN ls
+#RUN ./local.sh server
+
+
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_VERSION}
+ENV SCUDA_PORT=14833
+RUN apt update && apt install cudnn9-cuda-12 -y
+WORKDIR /app
+COPY --from=builder /build/server /app/
+EXPOSE $SCUDA_PORT
+CMD ["/app/server"]
